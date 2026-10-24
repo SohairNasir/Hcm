@@ -1,0 +1,10 @@
+import {Router} from 'express';import {Setting,Dept,Desig,LeaveType,Holiday} from '../models.js';import {h,auth,role,audit} from '../auth.js';
+const r=Router();r.use(auth);const K={departments:Dept,designations:Desig,leavetypes:LeaveType,holidays:Holiday};
+r.get('/settings',role('admin','hr'),h(async(q,s)=>s.json(await Setting.findOne())));
+r.put('/settings',role('admin'),h(async(q,s)=>{const b=q.body,old=await Setting.findOne();
+if(b.grace<0||b.halfDay<=0||b.radius<=0||!/^\d\d:\d\d$/.test(b.start||'09:00'))return s.status(422).json({error:'Invalid settings'});
+const n=await Setting.findOneAndUpdate({},{$set:b},{new:true});await audit(q,'update','settings',old,n);s.json(n)}));
+r.get('/:k',h(async(q,s)=>{const M=K[q.params.k];M?s.json(await M.find().sort('name')):s.status(404).json({error:'Unknown'})}));
+r.post('/:k',role('admin'),h(async(q,s)=>{const M=K[q.params.k];if(!M)return s.status(404).json({error:'Unknown'});const d=await M.create(q.body);await audit(q,'create',q.params.k+'/'+d._id,null,d);s.json(d)}));
+r.delete('/:k/:id',role('admin'),h(async(q,s)=>{const M=K[q.params.k];if(!M)return s.status(404).json({error:'Unknown'});const d=await M.findByIdAndDelete(q.params.id);await audit(q,'delete',q.params.k+'/'+q.params.id,d,null);s.json({ok:true})}));
+export default r;

@@ -1,0 +1,27 @@
+import {Router} from 'express';import bcrypt from 'bcryptjs';import crypto from 'crypto';
+import {User,Setting,LeaveType} from '../models.js';import {h,sign,auth,role,audit} from '../auth.js';
+export const pub=u=>({id:u._id,email:u.email,name:u.name,role:u.role,employee:u.employee,mustChange:u.mustChange});
+export async function bootstrap(company,email,password){await Setting.create({company});
+await LeaveType.insertMany([{name:'annual',quota:14},{name:'sick',quota:8},{name:'casual',quota:10},{name:'unpaid',quota:null}]);
+return User.create({email,password:await bcrypt.hash(password,10),role:'admin',name:'Admin'})}
+const r=Router();
+r.get('/status',h(async(q,s)=>s.json({setup:!!await Setting.findOne()})));
+r.post('/setup',h(async(q,s)=>{if(await Setting.findOne())return s.status(409).json({error:'Already set up'});
+const {company,email,password}=q.body;if(!company||!email||!password||password.length<6)return s.status(422).json({error:'company, email and password (6+) required'});
+const u=await bootstrap(company,email,password);s.json({token:sign(u),user:pub(u)})}));
+r.post('/login',h(async(q,s)=>{const u=await User.findOne({email:String(q.body.email||'').toLowerCase()});
+if(!u||!u.active||!await bcrypt.compare(q.body.password||'',u.password))return s.status(401).json({error:'Invalid email or password'});
+s.json({token:sign(u),user:pub(u)})}));
+r.get('/me',auth,(q,s)=>s.json(pub(q.user)));
+r.post('/change-password',auth,h(async(q,s)=>{const {current,next}=q.body;if(!next||next.length<6)return s.status(422).json({error:'New password must be 6+ chars'});
+if(!await bcrypt.compare(current||'',q.user.password))return s.status(401).json({error:'Current password is wrong'});
+q.user.password=await bcrypt.hash(next,10);q.user.mustChange=false;await q.user.save();s.json({ok:true})}));
+export const users=Router();users.use(auth,role('admin'));
+users.get('/',h(async(q,s)=>s.json(await User.find({role:{$ne:'admin'}}).select('-password'))));
+users.post('/hr',h(async(q,s)=>{const {name,email,password}=q.body;if(!name||!email||!password)return s.status(422).json({error:'name, email, password required'});
+const u=await User.create({name,email,password:await bcrypt.hash(password,10),role:'hr',mustChange:true});await audit(q,'create','user/'+email,null,{role:'hr'});s.json(pub(u))}));
+users.post('/:id/reset',h(async(q,s)=>{const pw=q.body.password||crypto.randomBytes(4).toString('hex');
+await User.findByIdAndUpdate(q.params.id,{password:await bcrypt.hash(pw,10),mustChange:true});await audit(q,'reset','user/'+q.params.id);s.json({tempPassword:pw})}));
+users.post('/:id/toggle',h(async(q,s)=>{const u=await User.findById(q.params.id);if(!u||u.role==='admin')return s.status(404).json({error:'Not found'});
+u.active=!u.active;await u.save();await audit(q,u.active?'activate':'deactivate','user/'+u.email);s.json({active:u.active})}));
+export default r;

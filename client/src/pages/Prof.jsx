@@ -1,0 +1,5 @@
+import {useState,useEffect} from 'react';
+import {Card,Stat,B,F,Sel,Bd,T,Bars,Grid,Filt,Ic,Logo,Cnt,LineC,Donut,Hero} from '../components/ui';
+import {DEPT,EMP} from '../data';
+function Prof(){return <Card t="My profile"><div className="flex items-center gap-4 mb-4"><div className="w-16 h-16 rounded-full grid place-items-center text-2xl text-white bg-gradient-to-br from-[var(--a)] to-[var(--b)]">A</div><div><p className="font-semibold">Ayesha Khan</p><p className="text-sm text-[var(--mut)]">E-001 · Developer · Engineering</p></div></div><Grid><F l="Phone" defaultValue="0300-0000000"/><F l="Address" defaultValue="Karachi"/></Grid><p className="text-xs text-[var(--mut)] mt-2">Salary, role and attendance cannot be edited by you</p><B v="p" className="mt-3">Save</B><hr className="my-4 border-[var(--bd)]"/><h4 className="font-semibold mb-2">Change password</h4><Grid n={3}><F l="Current" type="password"/><F l="New" type="password"/><div className="flex items-end"><B>Update</B></div></Grid></Card>}
+export default Prof;
